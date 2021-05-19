@@ -1,0 +1,75 @@
+version: "3"
+services:
+  web:
+    # image: fspringveldt/fswebworks:0.0.3
+    build:
+      context: .
+      args:
+        SS_ENVIRONMENT_TYPE: ${SS_ENVIRONMENT_TYPE}
+    container_name: web
+    depends_on:
+      - database
+      - mail
+      - redis
+    env_file:
+      - .env
+    environment:
+      - VIRTUAL_HOST=${SS_VIRTUAL_HOST}
+      - DOCUMENT_ROOT=/var/www/html
+      - SS_ENVIRONMENT_TYPE=${SS_ENVIRONMENT_TYPE}
+  redis:
+    image: "redis:alpine"
+    depends_on:
+      - redis-helper
+  redis-helper:
+    image: "alpine"
+    privileged: true
+    command: sh -c "echo never > /sys/kernel/mm/transparent_hugepage/enabled"
+  database:
+    container_name: db
+    image: "mysql:5.7"
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${SS_DATABASE_PASSWORD}
+    volumes:
+      - data-mysql:/var/lib/mysql
+  phpmyadmin:
+    container_name: pma
+    image: "phpmyadmin/phpmyadmin"
+    restart: always
+    environment:
+      - VIRTUAL_HOST=${SS_PMA_HOST}
+      - LETSENCRYPT_HOST=${SS_PMA_HOST}
+      - PMA_HOST=${SS_DATABASE_SERVER}
+      - PMA_USER=${SS_DATABASE_USERNAME}
+      - PMA_PASSWORD=${SS_DATABASE_PASSWORD}
+    depends_on:
+      - database
+  mail:
+    container_name: mail
+    image: "bytemark/smtp"
+    restart: always
+  nginx-proxy:
+    image: "jwilder/nginx-proxy:latest"
+    container_name: nginx-proxy
+    restart: always
+    volumes:
+      - conf:/etc/nginx/conf.d
+      - vhost:/etc/nginx/vhost.d
+      - html:/usr/share/nginx/html
+      - dhparam:/etc/nginx/dhparam
+      - certs:/etc/nginx/certs:ro
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+    ports:
+      - 80:80
+      # - 443:443
+    environment:
+      - DHPARAM_GENERATION=false
+
+volumes:
+  data-mysql:
+  conf:
+  vhost:
+  html:
+  dhparam:
+  certs:
